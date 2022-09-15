@@ -11,6 +11,7 @@ pub fn highlightText(
     let mut trailing: usize = 0;
     let mut result: Vec<_> = sentence_text.chars().collect();
     let mut chars = sentence_text.chars().peekable();
+    let mut offset = 0;
     for (pos, c) in chars.clone().enumerate() {
         if (!c.is_whitespace() || c != '{' || c != '}') && !active {
             trailing = pos;
@@ -18,28 +19,33 @@ pub fn highlightText(
         }
         if let Some(v) = chars.peek() {
             if v == &' ' || v == &'{' || v == &'}' && active {
+                let w = result[trailing + offset..pos + offset].iter().cloned().collect::<String>();
+                let initial_length = result.len();
                 parse(
-                    &sentence_text,
-                    trailing,
-                    pos,
+                    w,
+                    trailing + offset,
                     br_word_percentage,
                     max_fixation_parts,
                     fixation_lower_bound,
                     &mut result,
                 );
+                offset += result.len() - initial_length;
                 active = false;
             }
         }
-        if pos == sentence_text.len() - 1 && (c != ' ' || c == '{' || c == '}') {
+        if pos == sentence_text.len() - 1 && (c != ' ' || c == '{' || c == '}') && active {
+            let w = result[trailing + offset..pos + offset].iter().cloned().collect::<String>();
+            let initial_length = result.len();
             parse(
-                &sentence_text,
-                trailing,
-                pos,
+                w,
+                trailing + offset,
                 br_word_percentage,
                 max_fixation_parts,
                 fixation_lower_bound,
                 &mut result,
             );
+            offset += result.len() - initial_length;
+            active = false;
         }
         chars.next();
     }
@@ -48,19 +54,17 @@ pub fn highlightText(
 
 #[inline]
 fn parse(
-    sentence_text: &str,
+    word: String,
     trailing: usize,
-    pos: usize,
     br_word_percentage: f32,
     max_fixation_parts: usize,
     fixation_lower_bound: usize,
     result: &mut Vec<char>,
 ) {
-    let word = &sentence_text[trailing..pos];
-    let mut stop = 0;
+    let mut ending = 0;
     if !word.is_empty() {
         for (i, cf) in process(
-            word,
+            &word,
             br_word_percentage,
             max_fixation_parts,
             fixation_lower_bound,
@@ -68,12 +72,12 @@ fn parse(
         .chars()
         .enumerate()
         {
-            if i <= word.len() {
+            if i < word.len() {
                 result[trailing + i] = cf;
-                stop = i;
+                ending = i;
             } else {
-                result.insert(trailing + stop + 1, cf);
-                stop += 1;
+                ending += 1;
+                result.insert(trailing + ending, cf);
             }
         }
     }
@@ -125,4 +129,3 @@ fn process(
     }
     format!("<br-bold>{first_half}</br-bold>{second_half}")
 }
-
